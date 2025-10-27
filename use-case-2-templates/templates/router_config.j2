@@ -1,0 +1,87 @@
+!
+! {{ inventory_hostname }} - {{ device_role | upper }} Router Configuration
+! Location: {{ location_name }} ({{ location_code }})
+! Generated: {{ ansible_date_time.iso8601 }}
+!
+hostname {{ inventory_hostname }}
+!
+! Basic System Configuration
+service timestamps debug datetime msec
+service timestamps log datetime msec
+service password-encryption
+!
+! Timezone Configuration
+clock timezone {{ timezone }} 0
+!
+! DNS Configuration
+{% for dns_server in dns_servers %}
+ip name-server {{ dns_server }}
+{% endfor %}
+!
+! NTP Configuration
+{% for ntp_server in ntp_servers %}
+ntp server {{ ntp_server }} prefer
+{% endfor %}
+!
+! Logging Configuration
+logging buffered 51200 informational
+{% for syslog_server in syslog_servers %}
+logging host {{ syslog_server }}
+{% endfor %}
+logging trap informational
+!
+! SNMP Configuration
+snmp-server community {{ location_code }}_RO RO
+snmp-server location {{ snmp_location }}
+snmp-server contact {{ snmp_contact }}
+!
+{% if device_role == 'core' %}
+! BGP Configuration (Core Router)
+router bgp {{ bgp_as }}
+ bgp router-id {{ bgp_router_id }}
+ bgp log-neighbor-changes
+ network {{ network_prefix }}.0.0 mask 255.255.0.0
+!
+{% endif %}
+{% if interfaces is defined %}
+! Interface Configuration
+{% for interface in interfaces %}
+interface {{ interface.name }}
+ description {{ interface.description }}
+{% if interface.ip_address is defined %}
+ ip address {{ interface.ip_address }} {{ interface.netmask }}
+{% endif %}
+{% if interface.mode is defined and interface.mode == 'trunk' %}
+ switchport mode trunk
+ switchport trunk allowed vlan {{ interface.allowed_vlans }}
+{% elif interface.mode is defined and interface.mode == 'access' %}
+ switchport mode access
+ switchport access vlan {{ interface.vlan }}
+{% endif %}
+ no shutdown
+!
+{% endfor %}
+{% endif %}
+{% if static_routes is defined %}
+! Static Routes
+{% for route in static_routes %}
+ip route {{ route.network }} {{ route.netmask }} {{ route.next_hop }} name {{ route.name }}
+{% endfor %}
+!
+{% endif %}
+! Security
+ip ssh version 2
+line vty 0 4
+ transport input ssh
+ login local
+!
+! Banner
+banner login ^C
+******************************************************************
+*  {{ inventory_hostname }} - {{ location_name }}
+*  Authorized Access Only
+*  Location: {{ snmp_location }}
+******************************************************************
+^C
+!
+end

@@ -1,0 +1,24 @@
+---
+# Host-specific variables for core-router-nyc-01
+bgp_as: 65001
+bgp_router_id: 10.10.1.1
+
+interfaces:
+  - name: GigabitEthernet0/0
+    description: "Uplink to ISP-A"
+    ip_address: 203.0.113.1
+    netmask: 255.255.255.252
+  - name: GigabitEthernet0/1
+    description: "Uplink to ISP-B"
+    ip_address: 203.0.113.5
+    netmask: 255.255.255.252
+  - name: GigabitEthernet0/2
+    description: "Core Network"
+    ip_address: 10.10.1.1
+    netmask: 255.255.255.0
+
+static_routes:
+  - network: 0.0.0.0
+    netmask: 0.0.0.0
+    next_hop: 203.0.113.2
+    name: "Default via ISP-A"

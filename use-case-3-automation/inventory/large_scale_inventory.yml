@@ -1,0 +1,51 @@
+---
+# Inventory for large-scale update demonstration
+# In production, this would contain hundreds or thousands of devices
+
+all:
+  children:
+    all_network_devices:
+      children:
+        datacenter_devices:
+          children:
+            dc1_routers:
+              hosts:
+                dc1-router-[01:20]:
+                  ansible_host: "10.1.1.{{ 10 + (item | int) }}"
+                  device_type: cisco_ios
+                  datacenter: dc1
+            dc1_switches:
+              hosts:
+                dc1-switch-[01:30]:
+                  ansible_host: "10.1.2.{{ 10 + (item | int) }}"
+                  device_type: cisco_ios
+                  datacenter: dc1
+        
+        branch_devices:
+          children:
+            branch_routers:
+              hosts:
+                branch-router-[01:50]:
+                  ansible_host: "10.2.1.{{ 10 + (item | int) }}"
+                  device_type: cisco_ios
+                  branch: "branch{{ '%02d' | format(item | int) }}"
+            branch_switches:
+              hosts:
+                branch-switch-[01:100]:
+                  ansible_host: "10.2.2.{{ 10 + ((item | int) % 240) }}"
+                  device_type: cisco_ios
+                  branch: "branch{{ '%02d' | format((item | int / 2) | int) }}"
+  
+  vars:
+    ansible_connection: network_cli
+    ansible_network_os: ios
+    ansible_user: admin
+    ansible_password: "{{ vault_password }}"
+    ansible_become: yes
+    ansible_become_method: enable
+
+# Total devices in this example: 200
+# - 20 DC1 routers
+# - 30 DC1 switches  
+# - 50 branch routers
+# - 100 branch switches

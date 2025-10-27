@@ -1,0 +1,128 @@
+---
+# Use Case 1: Enforce Compliance Configuration Across Network Devices
+# This playbook ensures all network devices maintain consistent, compliant configurations
+# to meet security and operational standards
+
+- name: Enforce Network Compliance Configuration
+  hosts: network_devices
+  gather_facts: no
+  
+  vars:
+    compliance_standards:
+      - ntp_servers
+      - syslog_servers
+      - security_banners
+      - password_policies
+      - snmp_settings
+  
+  tasks:
+    - name: Display compliance enforcement start
+      debug:
+        msg: "Starting compliance enforcement on {{ inventory_hostname }}"
+    
+    - name: Configure NTP servers for time synchronization
+      cisco.ios.ios_ntp:
+        server: "{{ item }}"
+        state: present
+      loop:
+        - 10.0.0.1
+        - 10.0.0.2
+      tags: ntp
+    
+    - name: Configure syslog servers for centralized logging
+      cisco.ios.ios_config:
+        lines:
+          - logging host 10.1.1.1
+          - logging host 10.1.1.2
+          - logging trap informational
+          - logging facility local6
+      tags: syslog
+    
+    - name: Apply security banner (login)
+      cisco.ios.ios_banner:
+        banner: login
+        text: |
+          **************************************************************************
+          *                        AUTHORIZED ACCESS ONLY                         *
+          *                                                                        *
+          * This system is for authorized use only. Unauthorized access is        *
+          * prohibited and may be subject to criminal and civil penalties.        *
+          * All activities may be monitored and reported.                         *
+          **************************************************************************
+        state: present
+      tags: banner
+    
+    - name: Configure password policies
+      cisco.ios.ios_config:
+        lines:
+          - service password-encryption
+          - security passwords min-length 12
+          - login block-for 300 attempts 3 within 60
+      tags: password
+    
+    - name: Configure SNMP community strings (read-only)
+      cisco.ios.ios_config:
+        lines:
+          - snmp-server community ComplianceRO RO
+          - snmp-server location DataCenter-A
+          - snmp-server contact netops@company.com
+      tags: snmp
+    
+    - name: Disable unused services for security
+      cisco.ios.ios_config:
+        lines:
+          - no ip http server
+          - no ip http secure-server
+          - no service pad
+          - no cdp run
+      tags: security
+    
+    - name: Enable SSH version 2 only
+      cisco.ios.ios_config:
+        lines:
+          - ip ssh version 2
+          - ip ssh time-out 60
+          - ip ssh authentication-retries 3
+      tags: ssh
+    
+    - name: Save configuration
+      cisco.ios.ios_config:
+        save_when: modified
+      tags: save
+    
+    - name: Verify compliance configuration
+      cisco.ios.ios_command:
+        commands:
+          - show running-config | include ntp
+          - show running-config | include logging
+          - show running-config | include banner
+      register: compliance_check
+      tags: verify
+    
+    - name: Display compliance verification results
+      debug:
+        var: compliance_check.stdout_lines
+      tags: verify
+    
+    - name: Generate compliance report
+      copy:
+        content: |
+          Compliance Report for {{ inventory_hostname }}
+          ================================================
+          Date: {{ ansible_date_time.iso8601 }}
+          Device Type: {{ device_type }}
+          IP Address: {{ ansible_host }}
+          
+          Applied Configurations:
+          - NTP Servers: Configured
+          - Syslog Servers: Configured
+          - Security Banner: Applied
+          - Password Policies: Enforced
+          - SNMP Settings: Configured
+          - Unused Services: Disabled
+          - SSH v2: Enabled
+          
+          Configuration saved successfully.
+        dest: "../configs/{{ inventory_hostname }}_compliance_report.txt"
+      delegate_to: localhost
+      tags: report

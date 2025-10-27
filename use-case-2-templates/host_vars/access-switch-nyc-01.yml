@@ -1,0 +1,27 @@
+---
+# Host-specific variables for access-switch-nyc-01
+vlans:
+  - id: 100
+    name: "VLAN_SERVERS"
+  - id: 101
+    name: "VLAN_WORKSTATIONS"
+  - id: 102
+    name: "VLAN_PRINTERS"
+  - id: 110
+    name: "VLAN_GUEST_WIFI"
+
+interfaces:
+  - name: GigabitEthernet0/1
+    description: "Uplink to Core"
+    mode: trunk
+    allowed_vlans: "100-110"
+  - name: GigabitEthernet0/2
+    description: "Server Port"
+    mode: access
+    vlan: 100
+  - name: GigabitEthernet0/3
+    description: "Workstation Port"
+    mode: access
+    vlan: 101
+
+spanning_tree_priority: 4096

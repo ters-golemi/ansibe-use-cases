@@ -1,0 +1,86 @@
+!
+! {{ inventory_hostname }} - Access Switch Configuration
+! Location: {{ location_name }} ({{ location_code }})
+! Floor: {{ floor | default('N/A') }}
+! Generated: {{ ansible_date_time.iso8601 }}
+!
+hostname {{ inventory_hostname }}
+!
+! Basic System Configuration
+service timestamps debug datetime msec
+service timestamps log datetime msec
+service password-encryption
+!
+! Timezone Configuration
+clock timezone {{ timezone }} 0
+!
+! DNS Configuration
+{% for dns_server in dns_servers %}
+ip name-server {{ dns_server }}
+{% endfor %}
+!
+! NTP Configuration
+{% for ntp_server in ntp_servers %}
+ntp server {{ ntp_server }}
+{% endfor %}
+!
+! Logging Configuration
+logging buffered 51200 informational
+{% for syslog_server in syslog_servers %}
+logging host {{ syslog_server }}
+{% endfor %}
+!
+! SNMP Configuration
+snmp-server community {{ location_code }}_RO RO
+snmp-server location {{ snmp_location }}-Floor-{{ floor | default('N/A') }}
+snmp-server contact {{ snmp_contact }}
+!
+{% if vlans is defined %}
+! VLAN Configuration
+{% for vlan in vlans %}
+vlan {{ vlan.id }}
+ name {{ vlan.name }}
+!
+{% endfor %}
+{% endif %}
+! Spanning Tree Configuration
+spanning-tree mode rapid-pvst
+{% if spanning_tree_priority is defined %}
+spanning-tree vlan 1-4094 priority {{ spanning_tree_priority }}
+{% endif %}
+!
+{% if interfaces is defined %}
+! Interface Configuration
+{% for interface in interfaces %}
+interface {{ interface.name }}
+ description {{ interface.description }}
+{% if interface.mode == 'trunk' %}
+ switchport trunk encapsulation dot1q
+ switchport mode trunk
+ switchport trunk allowed vlan {{ interface.allowed_vlans }}
+ spanning-tree portfast trunk
+{% elif interface.mode == 'access' %}
+ switchport mode access
+ switchport access vlan {{ interface.vlan }}
+ spanning-tree portfast
+{% endif %}
+ no shutdown
+!
+{% endfor %}
+{% endif %}
+! Security
+ip ssh version 2
+line vty 0 4
+ transport input ssh
+ login local
+!
+! Banner
+banner login ^C
+******************************************************************
+*  {{ inventory_hostname }} - {{ location_name }}
+*  Floor {{ floor | default('N/A') }}
+*  Authorized Access Only
+******************************************************************
+^C
+!
+end

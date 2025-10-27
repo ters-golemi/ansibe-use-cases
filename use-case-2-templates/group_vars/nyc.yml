@@ -1,0 +1,29 @@
+---
+# Group variables for NYC location
+location_name: "New York City"
+location_code: NYC
+timezone: America/New_York
+
+# NTP servers for NYC region
+ntp_servers:
+  - 10.10.0.1
+  - 10.10.0.2
+
+# Syslog servers for NYC
+syslog_servers:
+  - 10.10.0.10
+  - 10.10.0.11
+
+# SNMP settings
+snmp_location: "NYC-DataCenter-DC1"
+snmp_contact: "nyc-netops@company.com"
+
+# DNS servers
+dns_servers:
+  - 10.10.0.53
+  - 10.10.0.54
+
+# Network prefixes
+network_prefix: "10.10"
+vlan_range_start: 100
+vlan_range_end: 199
