@@ -1,0 +1,29 @@
+---
+# Group variables for Tokyo location
+location_name: "Tokyo"
+location_code: TYO
+timezone: Asia/Tokyo
+
+# NTP servers for Tokyo region
+ntp_servers:
+  - 10.30.0.1
+  - 10.30.0.2
+
+# Syslog servers for Tokyo
+syslog_servers:
+  - 10.30.0.10
+  - 10.30.0.11
+
+# SNMP settings
+snmp_location: "TYO-DataCenter-DC3"
+snmp_contact: "tokyo-netops@company.com"
+
+# DNS servers
+dns_servers:
+  - 10.30.0.53
+  - 10.30.0.54
+
+# Network prefixes
+network_prefix: "10.30"
+vlan_range_start: 300
+vlan_range_end: 399

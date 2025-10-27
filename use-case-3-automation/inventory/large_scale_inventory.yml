@@ -1,0 +1,62 @@
+---
+# Inventory for large-scale update demonstration
+# Demonstrates updating 200 network devices across datacenter and branches
+# In production, expand this pattern or use dynamic inventory
+
+all:
+  children:
+    all_network_devices:
+      children:
+        datacenter_devices:
+          children:
+            dc1_routers:
+              hosts:
+                dc1-router-[01:20]:
+                  device_type: cisco_ios
+                  datacenter: dc1
+              vars:
+                # Routers use 10.1.1.x range
+                ansible_host: "10.1.1.{{ groups['dc1_routers'].index(inventory_hostname) + 11 }}"
+            
+            dc1_switches:
+              hosts:
+                dc1-switch-[01:30]:
+                  device_type: cisco_ios
+                  datacenter: dc1
+              vars:
+                # Switches use 10.1.2.x range
+                ansible_host: "10.1.2.{{ groups['dc1_switches'].index(inventory_hostname) + 11 }}"
+        
+        branch_devices:
+          children:
+            branch_routers:
+              hosts:
+                branch-router-[01:50]:
+                  device_type: cisco_ios
+              vars:
+                ansible_host: "10.2.1.{{ groups['branch_routers'].index(inventory_hostname) + 11 }}"
+            
+            branch_switches:
+              hosts:
+                branch-switch-[001:100]:
+                  device_type: cisco_ios
+              vars:
+                # Distribute across multiple subnets
+                ansible_host: "10.2.{{ 2 + (groups['branch_switches'].index(inventory_hostname) // 240) }}.{{ (groups['branch_switches'].index(inventory_hostname) % 240) + 11 }}"
+  
+  vars:
+    ansible_connection: network_cli
+    ansible_network_os: ios
+    ansible_user: admin
+    ansible_password: "{{ vault_password }}"
+    ansible_become: yes
+    ansible_become_method: enable
+
+# Total devices in this inventory: 200
+# - DC1: 20 routers (10.1.1.11-30) + 30 switches (10.1.2.11-40) = 50 devices
+# - Branches: 50 routers (10.2.1.11-60) + 100 switches (10.2.2-3.x) = 150 devices
+# 
+# This demonstrates large-scale operations across:
+# - Multiple device types (routers and switches)
+# - Multiple locations (datacenter and branches)
+# - Scalable IP addressing patterns

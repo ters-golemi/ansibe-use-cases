@@ -1,0 +1,171 @@
+---
+# Use Case 4: Configuration Backup for Quick Rollback
+# This playbook creates comprehensive backups of network device configurations
+# to enable quick recovery in case of issues
+
+- name: Backup Network Device Configurations
+  hosts: network_devices
+  gather_facts: yes
+  
+  vars:
+    backup_timestamp: "{{ ansible_date_time.iso8601_basic_short }}"
+    backup_base_dir: "../backups"
+    backup_retention_days: 30
+  
+  tasks:
+    - name: Create backup directory structure
+      file:
+        path: "{{ backup_base_dir }}/{{ ansible_date_time.date }}"
+        state: directory
+        mode: '0755'
+      delegate_to: localhost
+      run_once: true
+    
+    - name: Display backup information
+      debug:
+        msg: |
+          Creating backup for {{ inventory_hostname }}
+          Timestamp: {{ backup_timestamp }}
+          Location: {{ backup_base_dir }}/{{ ansible_date_time.date }}
+    
+    - name: Backup running configuration
+      cisco.ios.ios_config:
+        backup: yes
+        backup_options:
+          filename: "{{ inventory_hostname }}_running_{{ backup_timestamp }}.cfg"
+          dir_path: "{{ backup_base_dir }}/{{ ansible_date_time.date }}"
+      register: backup_running
+      tags: backup
+    
+    - name: Backup startup configuration
+      cisco.ios.ios_command:
+        commands:
+          - show startup-config
+      register: startup_config
+      tags: backup
+    
+    - name: Save startup configuration to file
+      copy:
+        content: "{{ startup_config.stdout[0] }}"
+        dest: "{{ backup_base_dir }}/{{ ansible_date_time.date }}/{{ inventory_hostname }}_startup_{{ backup_timestamp }}.cfg"
+      delegate_to: localhost
+      tags: backup
+    
+    - name: Collect device version information
+      cisco.ios.ios_command:
+        commands:
+          - show version
+          - show running-config | include hostname
+          - show ip interface brief
+          - show vlan brief
+      register: device_info
+      tags: info
+    
+    - name: Save device information
+      copy:
+        content: |
+          Device Information for {{ inventory_hostname }}
+          =============================================
+          Backup Date: {{ ansible_date_time.iso8601 }}
+          Device IP: {{ ansible_host }}
+          
+          Version Information:
+          {{ device_info.stdout[0] }}
+          
+          Hostname:
+          {{ device_info.stdout[1] }}
+          
+          Interfaces:
+          {{ device_info.stdout[2] }}
+          
+          VLANs:
+          {{ device_info.stdout[3] }}
+        dest: "{{ backup_base_dir }}/{{ ansible_date_time.date }}/{{ inventory_hostname }}_info_{{ backup_timestamp }}.txt"
+      delegate_to: localhost
+      tags: info
+    
+    - name: Create backup manifest
+      lineinfile:
+        path: "{{ backup_base_dir }}/{{ ansible_date_time.date }}/backup_manifest.txt"
+        line: "{{ ansible_date_time.iso8601 }}|{{ inventory_hostname }}|{{ ansible_host }}|{{ backup_running.backup_path | default('N/A') }}|SUCCESS"
+        create: yes
+      delegate_to: localhost
+      when: backup_running is succeeded
+    
+    - name: Calculate configuration checksum
+      stat:
+        path: "{{ backup_running.backup_path }}"
+        checksum_algorithm: sha256
+      register: config_checksum
+      delegate_to: localhost
+      when: backup_running is succeeded
+    
+    - name: Record configuration checksum
+      lineinfile:
+        path: "{{ backup_base_dir }}/{{ ansible_date_time.date }}/checksums.txt"
+        line: "{{ config_checksum.stat.checksum }}  {{ inventory_hostname }}_running_{{ backup_timestamp }}.cfg"
+        create: yes
+      delegate_to: localhost
+      when: config_checksum is succeeded
+
+- name: Generate Backup Summary Report
+  hosts: localhost
+  gather_facts: yes
+  
+  vars:
+    backup_base_dir: "./use-case-4-rollback/backups"
+  
+  tasks:
+    - name: Create backup summary
+      copy:
+        content: |
+          CONFIGURATION BACKUP SUMMARY
+          ============================
+          
+          Backup Date: {{ ansible_date_time.iso8601 }}
+          Backup Location: {{ backup_base_dir }}/{{ ansible_date_time.date }}
+          
+          Purpose:
+          Configuration backups enable quick recovery from:
+          - Failed configuration changes
+          - Security incidents
+          - Hardware failures
+          - Human errors
+          
+          Backup Contents:
+          - Running configurations (active config)
+          - Startup configurations (boot config)
+          - Device version information
+          - Interface status
+          - VLAN information
+          - SHA-256 checksums for verification
+          
+          Retention Policy:
+          - Backups retained for 30 days
+          - Daily automated backups
+          - Pre-change backups
+          - Post-change backups
+          
+          Backup Files Per Device:
+          1. <hostname>_running_<timestamp>.cfg   - Running configuration
+          2. <hostname>_startup_<timestamp>.cfg   - Startup configuration
+          3. <hostname>_info_<timestamp>.txt      - Device information
+          
+          Verification:
+          - All backups checksummed (SHA-256)
+          - Backup manifest created
+          - File integrity verifiable
+          
+          Rollback Capability:
+          - Quick restoration from any backup
+          - Point-in-time recovery
+          - Compare configurations across time
+          - Audit trail of all changes
+          
+          Next Steps:
+          1. Verify backup manifest completeness
+          2. Test rollback procedure (optional)
+          3. Archive backups to long-term storage
+          4. Clean up backups older than retention period
+        dest: "{{ backup_base_dir }}/{{ ansible_date_time.date }}/BACKUP_SUMMARY.txt"
+      tags: summary

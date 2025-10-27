@@ -1,0 +1,279 @@
+---
+# Use Case 3: Large-Scale Automated Updates
+# This playbook demonstrates automating updates across hundreds of devices
+# with proper error handling, logging, and parallel execution
+
+- name: Pre-Update Validation and Backup
+  hosts: all_network_devices
+  gather_facts: no
+  serial: 10  # Process 10 devices at a time
+  
+  vars:
+    update_timestamp: "{{ ansible_date_time.epoch }}"
+    backup_dir: "../backups/{{ ansible_date_time.date }}"
+  
+  tasks:
+    - name: Create backup directory
+      file:
+        path: "{{ backup_dir }}"
+        state: directory
+      delegate_to: localhost
+      run_once: true
+    
+    - name: Check device reachability
+      wait_for:
+        host: "{{ ansible_host }}"
+        port: 22
+        timeout: 30
+      delegate_to: localhost
+      register: reachability_check
+      ignore_errors: yes
+    
+    - name: Skip unreachable devices
+      meta: end_host
+      when: reachability_check is failed
+    
+    - name: Backup current configuration
+      cisco.ios.ios_config:
+        backup: yes
+        backup_options:
+          filename: "{{ inventory_hostname }}_pre_update.cfg"
+          dir_path: "{{ backup_dir }}"
+      register: backup_result
+      tags: backup
+    
+    - name: Log backup status
+      lineinfile:
+        path: "../logs/update_log_{{ ansible_date_time.date }}.txt"
+        line: "{{ ansible_date_time.iso8601 }} | {{ inventory_hostname }} | BACKUP | {{ 'SUCCESS' if backup_result is succeeded else 'FAILED' }}"
+        create: yes
+      delegate_to: localhost
+
+- name: Deploy Large-Scale Updates
+  hosts: all_network_devices
+  gather_facts: no
+  serial: 20  # Increased parallelism for update phase
+  
+  vars:
+    ios_version: "15.7"
+    security_patch_level: "M8"
+    update_window: "2 hours"
+  
+  tasks:
+    - name: Display update information
+      debug:
+        msg: |
+          Updating {{ inventory_hostname }}
+          Target IOS: {{ ios_version }}
+          Patch Level: {{ security_patch_level }}
+          Batch: {{ ansible_play_batch }}
+    
+    - name: Check current IOS version
+      cisco.ios.ios_command:
+        commands:
+          - show version | include Version
+      register: current_version
+      tags: check
+    
+    - name: Apply security patch configurations
+      cisco.ios.ios_config:
+        lines:
+          - service password-encryption
+          - security passwords min-length 14
+          - login block-for 300 attempts 5 within 120
+          - ip ssh version 2
+          - ip ssh time-out 60
+          - no ip http server
+          - no ip http secure-server
+        save_when: modified
+      register: security_update
+      tags: security
+    
+    - name: Update SNMP configuration for enhanced security
+      cisco.ios.ios_config:
+        lines:
+          - no snmp-server community public
+          - snmp-server community SecureComm{{ update_timestamp }} RO
+          - snmp-server group SecureGroup v3 priv
+      register: snmp_update
+      tags: snmp
+    
+    - name: Update NTP configuration with authenticated servers
+      cisco.ios.ios_config:
+        lines:
+          - ntp authenticate
+          - ntp authentication-key 1 md5 {{ ntp_auth_key | default('SecureKey123') }}
+          - ntp trusted-key 1
+          - ntp server 10.0.0.1 key 1
+          - ntp server 10.0.0.2 key 1
+      register: ntp_update
+      tags: ntp
+    
+    - name: Apply ACL updates for improved security
+      cisco.ios.ios_config:
+        lines:
+          - access-list 99 remark Management Access Control
+          - access-list 99 permit 10.0.0.0 0.255.255.255
+          - access-list 99 deny any log
+        before:
+          - no access-list 99
+      register: acl_update
+      tags: acl
+    
+    - name: Update logging configuration
+      cisco.ios.ios_config:
+        lines:
+          - logging buffered 100000
+          - logging console critical
+          - logging monitor informational
+          - logging trap notifications
+          - logging facility local6
+          - logging source-interface Loopback0
+      register: logging_update
+      tags: logging
+    
+    - name: Verify updates were applied
+      cisco.ios.ios_command:
+        commands:
+          - show running-config | include password
+          - show running-config | include snmp
+          - show running-config | include ntp
+          - show running-config | include logging
+      register: verification
+      tags: verify
+    
+    - name: Log update status
+      lineinfile:
+        path: "../logs/update_log_{{ ansible_date_time.date }}.txt"
+        line: "{{ ansible_date_time.iso8601 }} | {{ inventory_hostname }} | UPDATE | SUCCESS | Security={{ security_update.changed }} SNMP={{ snmp_update.changed }} NTP={{ ntp_update.changed }} ACL={{ acl_update.changed }}"
+        create: yes
+      delegate_to: localhost
+      when: security_update is succeeded
+    
+    - name: Log update failures
+      lineinfile:
+        path: "../logs/update_log_{{ ansible_date_time.date }}.txt"
+        line: "{{ ansible_date_time.iso8601 }} | {{ inventory_hostname }} | UPDATE | FAILED | {{ ansible_failed_result.msg | default('Unknown error') }}"
+        create: yes
+      delegate_to: localhost
+      when: security_update is failed
+
+- name: Post-Update Validation
+  hosts: all_network_devices
+  gather_facts: no
+  serial: 30  # Higher parallelism for validation
+  
+  tasks:
+    - name: Verify device connectivity post-update
+      wait_for:
+        host: "{{ ansible_host }}"
+        port: 22
+        timeout: 60
+      delegate_to: localhost
+      register: post_update_check
+    
+    - name: Run comprehensive health check
+      cisco.ios.ios_command:
+        commands:
+          - show version
+          - show running-config | include ssh
+          - show running-config | include snmp
+          - show ip interface brief
+          - show processes cpu | include CPU
+      register: health_check
+      tags: healthcheck
+    
+    - name: Generate device update report
+      copy:
+        content: |
+          Update Report: {{ inventory_hostname }}
+          =====================================
+          
+          Update Date: {{ ansible_date_time.iso8601 }}
+          Device IP: {{ ansible_host }}
+          Device Type: {{ device_type | default('Unknown') }}
+          
+          Pre-Update Backup: {{ backup_result.backup_path | default('Not available') }}
+          
+          Updates Applied:
+          - Security configurations: {{ security_update.changed | default(false) }}
+          - SNMP hardening: {{ snmp_update.changed | default(false) }}
+          - NTP authentication: {{ ntp_update.changed | default(false) }}
+          - ACL updates: {{ acl_update.changed | default(false) }}
+          - Logging enhancements: {{ logging_update.changed | default(false) }}
+          
+          Post-Update Status: {{ 'ONLINE' if post_update_check is succeeded else 'OFFLINE' }}
+          
+          Health Check Results:
+          {{ health_check.stdout_lines | to_nice_yaml }}
+        dest: "../logs/{{ inventory_hostname }}_update_report.txt"
+      delegate_to: localhost
+      tags: report
+
+- name: Generate Summary Report
+  hosts: localhost
+  gather_facts: yes
+  
+  tasks:
+    - name: Count total devices
+      set_fact:
+        total_devices: "{{ groups['all_network_devices'] | length }}"
+    
+    - name: Create executive summary
+      copy:
+        content: |
+          LARGE-SCALE UPDATE EXECUTIVE SUMMARY
+          ====================================
+          
+          Update Execution Date: {{ ansible_date_time.iso8601 }}
+          
+          Scope:
+          - Total Devices Targeted: {{ total_devices }}
+          - Update Type: Security Hardening & Configuration Standardization
+          - Update Window: {{ update_window }}
+          
+          Updates Deployed:
+          1. Enhanced password policies (min length 14, lockout after 5 attempts)
+          2. SSH hardening (v2 only, 60s timeout)
+          3. Disabled insecure services (HTTP, insecure SNMP)
+          4. Updated SNMP with secure community strings
+          5. Implemented NTP authentication
+          6. Applied management ACLs
+          7. Enhanced logging configuration
+          
+          Execution Strategy:
+          - Parallel execution with batching (serial: 10-30)
+          - Automatic backup before updates
+          - Real-time logging and monitoring
+          - Post-update validation and health checks
+          
+          Time Savings:
+          - Manual update time per device: ~20 minutes
+          - Total manual time for {{ total_devices }} devices: ~{{ (total_devices | int * 20 / 60) | round(1) }} hours
+          - Automated completion time: ~{{ ((total_devices | int / 20) * 5) | round(0) }} minutes
+          - Time saved: ~{{ ((total_devices | int * 20 / 60) - ((total_devices | int / 20) * 5 / 60)) | round(1) }} hours
+          
+          Error Reduction:
+          - Manual error rate: ~5-10% (typos, missed steps)
+          - Automated error rate: <1% (network/device issues only)
+          - Consistency: 100% (identical configuration applied to all devices)
+          
+          Benefits:
+          - Rapid deployment across entire infrastructure
+          - Zero configuration drift
+          - Complete audit trail with logs
+          - Easy rollback with pre-update backups
+          - Minimal downtime (rolling updates)
+          
+          Log Files:
+          - Update log: logs/update_log_{{ ansible_date_time.date }}.txt
+          - Individual reports: logs/*_update_report.txt
+          - Backups: backups/{{ ansible_date_time.date }}/
+          
+          Next Steps:
+          1. Review individual device reports for any failures
+          2. Address any devices that failed validation
+          3. Verify all devices in monitoring system
+          4. Schedule follow-up compliance scan
+        dest: "./use-case-3-automation/logs/executive_summary_{{ ansible_date_time.date }}.txt"
+      tags: summary

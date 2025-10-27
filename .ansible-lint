@@ -1,0 +1,12 @@
+# Ansible Lint configuration
+skip_list:
+  - yaml[line-length]
+  - yaml[trailing-spaces]
+  - no-changed-when
+  - command-instead-of-module
+
+exclude_paths:
+  - .git/
+  - backups/
+  - logs/
+  - configs/

@@ -1,0 +1,29 @@
+---
+# Group variables for London location
+location_name: "London"
+location_code: LON
+timezone: Europe/London
+
+# NTP servers for London region
+ntp_servers:
+  - 10.20.0.1
+  - 10.20.0.2
+
+# Syslog servers for London
+syslog_servers:
+  - 10.20.0.10
+  - 10.20.0.11
+
+# SNMP settings
+snmp_location: "LON-DataCenter-DC2"
+snmp_contact: "london-netops@company.com"
+
+# DNS servers
+dns_servers:
+  - 10.20.0.53
+  - 10.20.0.54
+
+# Network prefixes
+network_prefix: "10.20"
+vlan_range_start: 200
+vlan_range_end: 299

@@ -1,0 +1,131 @@
+---
+# Use Case 2: Template-Based Configuration Customization
+# This playbook demonstrates using Jinja2 templates to customize device
+# configurations based on device type, location, and specific requirements
+
+- name: Deploy Customized Configurations Using Templates
+  hosts: network_devices
+  gather_facts: yes
+  
+  tasks:
+    - name: Display device information
+      debug:
+        msg: |
+          Configuring {{ inventory_hostname }}
+          Role: {{ device_role }}
+          Location: {{ location_name }} ({{ location_code }})
+          Datacenter: {{ datacenter }}
+    
+    - name: Generate configuration for core and edge routers
+      template:
+        src: "../templates/router_config.j2"
+        dest: "../configs/{{ inventory_hostname }}_config.txt"
+      when: device_role in ['core', 'edge']
+      delegate_to: localhost
+      tags: routers
+    
+    - name: Generate configuration for access switches
+      template:
+        src: "../templates/switch_config.j2"
+        dest: "../configs/{{ inventory_hostname }}_config.txt"
+      when: device_role == 'access'
+      delegate_to: localhost
+      tags: switches
+    
+    - name: Validate generated configuration file exists
+      stat:
+        path: "../configs/{{ inventory_hostname }}_config.txt"
+      register: config_file
+      delegate_to: localhost
+    
+    - name: Display configuration file status
+      debug:
+        msg: "Configuration file created: {{ config_file.stat.exists }}"
+    
+    - name: Apply configuration to device (simulation)
+      debug:
+        msg: |
+          Would apply configuration from: ../configs/{{ inventory_hostname }}_config.txt
+          In production, this would use:
+          - cisco.ios.ios_config with src parameter
+          - or copy configuration via SCP
+      tags: apply
+    
+    - name: Generate location-specific summary
+      copy:
+        content: |
+          Configuration Summary for {{ inventory_hostname }}
+          ================================================
+          
+          Device Details:
+          - Hostname: {{ inventory_hostname }}
+          - Role: {{ device_role }}
+          - Location: {{ location_name }} ({{ location_code }})
+          - Datacenter: {{ datacenter }}
+          - IP Address: {{ ansible_host }}
+          
+          Location-Specific Settings:
+          - Timezone: {{ timezone }}
+          - NTP Servers: {{ ntp_servers | join(', ') }}
+          - DNS Servers: {{ dns_servers | join(', ') }}
+          - Syslog Servers: {{ syslog_servers | join(', ') }}
+          - SNMP Location: {{ snmp_location }}
+          - SNMP Contact: {{ snmp_contact }}
+          
+          Network Settings:
+          - Network Prefix: {{ network_prefix }}
+          - VLAN Range: {{ vlan_range_start }}-{{ vlan_range_end }}
+          
+          Configuration Template Used:
+          {% if device_role in ['core', 'edge'] %}
+          - router_config.j2
+          {% elif device_role == 'access' %}
+          - switch_config.j2
+          {% endif %}
+          
+          Generated: {{ ansible_date_time.iso8601 }}
+        dest: "../configs/{{ inventory_hostname }}_summary.txt"
+      delegate_to: localhost
+      tags: summary
+
+- name: Generate Global Configuration Report
+  hosts: localhost
+  gather_facts: no
+  
+  tasks:
+    - name: Create overall deployment report
+      copy:
+        content: |
+          Template-Based Configuration Deployment Report
+          ==============================================
+          
+          Deployment Date: {{ ansible_date_time.iso8601 }}
+          
+          Locations Configured:
+          - New York City (NYC) - DC1
+          - London (LON) - DC2
+          - Tokyo (TYO) - DC3
+          
+          Device Types:
+          - Core Routers: Location-specific routing and BGP
+          - Edge Routers: Location-specific edge services
+          - Access Switches: Floor-specific access layer
+          
+          Customization Parameters:
+          - Timezone settings per location
+          - Region-specific NTP/DNS/Syslog servers
+          - Location-based VLAN ranges
+          - Device role-specific features
+          - Host-specific interface configurations
+          
+          Benefits:
+          - Single template supports multiple locations
+          - Automatic customization based on inventory variables
+          - Consistent structure with location-specific values
+          - Easy to add new locations or device types
+          
+          Files Generated:
+          - Device configurations in configs/ directory
+          - Individual device summaries
+        dest: "./use-case-2-templates/configs/deployment_report.txt"
+      tags: report
