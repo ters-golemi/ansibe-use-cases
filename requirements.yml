@@ -1,0 +1,16 @@
+---
+# Ansible Collections Requirements
+# Install with: ansible-galaxy collection install -r requirements.yml
+
+collections:
+  # Cisco IOS/IOS-XE network modules
+  - name: cisco.ios
+    version: ">=5.0.0"
+  
+  # Common network modules and utilities
+  - name: ansible.netcommon
+    version: ">=5.0.0"
+  
+  # Additional utilities
+  - name: ansible.utils
+    version: ">=2.0.0"

@@ -1,0 +1,48 @@
+# Ansible generated files
+*.retry
+
+# Backup files
+use-case-1-compliance/configs/*_compliance_report.txt
+use-case-2-templates/configs/*.txt
+use-case-2-templates/configs/*.cfg
+use-case-3-automation/logs/*.txt
+use-case-3-automation/backups/
+use-case-4-rollback/backups/*/
+use-case-4-rollback/configs/*.txt
+
+# Keep directory structure but ignore contents
+!use-case-1-compliance/configs/.gitkeep
+!use-case-2-templates/configs/.gitkeep
+!use-case-3-automation/logs/.gitkeep
+!use-case-3-automation/backups/.gitkeep
+!use-case-4-rollback/backups/.gitkeep
+!use-case-4-rollback/configs/.gitkeep
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+ENV/
+
+# Editor files
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+*.sublime-*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Ansible vault files (if used)
+vault_pass.txt
+*.vault
+
+# Temporary files
+*.tmp
+/tmp/
